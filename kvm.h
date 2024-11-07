@@ -153,7 +153,7 @@ static const void* _kvm_get(const void* mv, const size_t n,
 
 static bool _kvm_grow(void* mv, const size_t kb, const size_t vb) {
     kvm_heap(void*, void*)* m = mv;
-    if (m->a >= (size_t)UINT64_MAX / 2) {
+    if (m->a >= (size_t)(UINTPTR_MAX / 2)) {
         kvm_fatal("allocated overflow: %zd\n", m->a);
         return false;
     }
@@ -224,9 +224,8 @@ static bool _kvm_put(void* mv, const size_t n_or_a,
     return true;
 }
 
-static inline bool _kvm_delete(void* mv, const size_t n,
-                               size_t kb, size_t vb,
-                               const void* pkey) {
+static bool _kvm_delete(void* mv, const size_t n,
+                        size_t kb, size_t vb, const void* pkey) {
     kvm_heap(void*, void*)* m = mv;
     const uint8_t* v = _kvm_get(mv, n, kb, vb, pkey);
     if (v) {

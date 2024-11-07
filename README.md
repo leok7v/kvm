@@ -53,7 +53,7 @@ int main(void) {
 }
 ```
 
-Performance measurements:
+## Performance measurements:
 
 ```c
     enum { n = 16 * 1024 * 1024 };
@@ -77,7 +77,7 @@ Performance measurements:
 //  kvm_free(&m);
 ```
 
-MacBook Air M3 2024 ARM64 Release build:
+## MacBook Air M3 2024 ARM64 Release build results:
 
 ```
 static kvm_fixed(uint64_t, uint64_t, 20971520) m;
@@ -92,4 +92,20 @@ kvm_put   : 0.194μs
 kvm_get   : 0.054μs
 kvm_delete: 0.115μs
 time in μs microseconds
+```
+
+run to run performance fluctuations are due to 
+L1/L2/L3 caches hit/miss variations.
+
+```
+enum { n = 2 * 1024 * 1024 }; // slightly better performance
+
+static kvm_fixed(uint64_t, uint64_t, 2621440) m;
+kvm_put   : 0.080μs
+kvm_get   : 0.050μs
+kvm_delete: 0.098μs
+static kvm_heap(uint64_t, uint64_t) m;
+kvm_put   : 0.136μs
+kvm_get   : 0.041μs
+kvm_delete: 0.081μs
 ```

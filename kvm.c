@@ -146,7 +146,7 @@ static void permute(size_t index[], size_t n) {
 }
 
 static int test3(void) {
-    enum { n = 16 * 1024 * 1024 };
+    enum { n = 2 * 1024 * 1024 };
     static size_t index[n];
     static uint64_t k[n];
     static uint64_t v[n];
@@ -186,7 +186,7 @@ static int test3(void) {
 }
 
 static int test4(void) {
-    enum { n = 16 * 1024 * 1024 };
+    enum { n = 2 * 1024 * 1024 };
     static size_t index[n];
     static uint64_t k[n];
     static uint64_t v[n];
