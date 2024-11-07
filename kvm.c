@@ -1,4 +1,4 @@
-#include "rt/ustd.h"
+﻿#include "rt/ustd.h"
 #include "kvm.h"
 
 #ifndef swear
@@ -12,11 +12,24 @@
 
 #endif
 
+static uint64_t seed = 1;
+
+static int test0(void) {
+    kvm_fixed(int, double, 16) m;
+    kvm_init(&m);
+    kvm_put(&m, 42, 3.1415);
+    double* p = kvm_get(&m, 42);
+    printf("m[42]: %f\n", *p);
+    bool deleted = kvm_delete(&m, 42);
+    printf("deleted: %d\n", deleted);
+    return 0;
+}
+
 static int test1(void) {
-    typedef kvm(int,   double, 16) kvm_int_double_16;
-    typedef kvm(float, double, 16) kvm_float_double_16;
+    typedef kvm_fixed(int,   double, 16) kvm_int_double_16;
+    typedef kvm_fixed(float, double, 16) kvm_float_double_16;
     {
-        kvm(int, double, 16) m1;
+        kvm_fixed(int, double, 16) m1;
         kvm_init(&m1);
         int i = 123;
         kvm_put(&m1, i, 999.999);
@@ -27,7 +40,7 @@ static int test1(void) {
         swear(!ri);
     }
     {
-        kvm(float, double, 16) m2;
+        kvm_fixed(float, double, 16) m2;
         kvm_init(&m2);
         float f = 321.467f;
         kvm_put(&m2, f, 666.666);
@@ -38,7 +51,7 @@ static int test1(void) {
         swear(!rf);
     }
     {
-        kvm(uint64_t, uint64_t, 0) m;
+        kvm_heap(uint64_t, uint64_t) m;
         kvm_alloc(&m, 16);
         for (int i = 0; i < 1024; i++) {
             kvm_put(&m, i, i * i);
@@ -55,8 +68,7 @@ static int test2(void) {
     #else
     enum { n = 1024 };
     #endif
-    uint64_t seed = 1;
-    typedef kvm(size_t, double, 0) kvm_int_double;
+    typedef kvm_heap(size_t, double) kvm_int_double;
     static double a[n];
     static double b[n];
     for (size_t i = 0; i < n; i++) {
@@ -127,6 +139,93 @@ static int test2(void) {
     return 0;
 }
 
+static void permute(size_t index[], size_t n) {
+    for (size_t i = 0; i < n; i++) {
+        swap(index[i], index[(size_t)(rand64(&seed) * n)]);
+    }
+}
+
+static int test3(void) {
+    enum { n = 16 * 1024 * 1024 };
+    static size_t index[n];
+    static uint64_t k[n];
+    static uint64_t v[n];
+    // 75% occupancy:
+    static kvm_fixed(uint64_t, uint64_t, n + n / 4) m;
+    kvm_init(&m);
+    printf("static kvm_fixed(uint64_t, uint64_t, %zd) m;\n", n + n / 4);
+    for (size_t i = 0; i < n; i++) {
+        index[i] = i;
+        k[i] = random64(&seed);
+        v[i] = random64(&seed);
+    }
+    permute(index, n);
+    uint64_t t = nanoseconds();
+    for (size_t i = 0; i < n; i++) {
+        kvm_put(&m, k[index[i]], v[index[i]]);
+    }
+    t = nanoseconds() - t;
+    printf("kvm_put   : %.3f" "\xCE\xBC" "s\n", (t * 1e-3) / (double)n);
+    permute(index, n);
+    t = nanoseconds();
+    for (size_t i = 0; i < n; i++) {
+        uint64_t* r = kvm_get(&m, k[index[i]]);
+        swear(*r == v[index[i]]);
+    }
+    t = nanoseconds() - t;
+    printf("kvm_get   : %.3f" "\xCE\xBC" "s\n", (t * 1e-3) / (double)n);
+    permute(index, n);
+    t = nanoseconds();
+    for (size_t i = 0; i < n; i++) {
+        bool deleted = kvm_delete(&m, k[index[i]]);
+        swear(deleted);
+    }
+    t = nanoseconds() - t;
+    printf("kvm_delete: %.3f" "\xCE\xBC" "s\n", (t * 1e-3) / (double)n);
+    return 0;
+}
+
+static int test4(void) {
+    enum { n = 16 * 1024 * 1024 };
+    static size_t index[n];
+    static uint64_t k[n];
+    static uint64_t v[n];
+    static kvm_heap(uint64_t, uint64_t) m;
+    kvm_alloc(&m, 16);
+    printf("static kvm_heap(uint64_t, uint64_t) m;\n", n + n / 4);
+    for (size_t i = 0; i < n; i++) {
+        index[i] = i;
+        k[i] = random64(&seed);
+        v[i] = random64(&seed);
+    }
+    permute(index, n);
+    uint64_t t = nanoseconds();
+    for (size_t i = 0; i < n; i++) {
+        kvm_put(&m, k[index[i]], v[index[i]]);
+    }
+    t = nanoseconds() - t;
+    printf("kvm_put   : %.3f" "\xCE\xBC" "s\n", (t * 1e-3) / (double)n);
+    permute(index, n);
+    t = nanoseconds();
+    for (size_t i = 0; i < n; i++) {
+        uint64_t* r = kvm_get(&m, k[index[i]]);
+        swear(*r == v[index[i]]);
+    }
+    t = nanoseconds() - t;
+    printf("kvm_get   : %.3f" "\xCE\xBC" "s\n", (t * 1e-3) / (double)n);
+    permute(index, n);
+    t = nanoseconds();
+    for (size_t i = 0; i < n; i++) {
+        bool deleted = kvm_delete(&m, k[index[i]]);
+        swear(deleted);
+    }
+    t = nanoseconds() - t;
+    printf("kvm_delete: %.3f" "\xCE\xBC" "s\n", (t * 1e-3) / (double)n);
+    kvm_free(&m);
+    printf("time in " "\xCE\xBC" "s microseconds\n");
+    return 0;
+}
+
 static void on_signal(int signum) {
     fprintf(stderr, "signal: %d\n", signum);
     exit(EXIT_FAILURE);
@@ -137,6 +236,6 @@ int main(int argc, const char* argv[]) {
     if (signal(SIGABRT, on_signal) == SIG_ERR) {
         perror("signal(SIGABRT, on_signal) failed\n");
     }
-    kvm_errors_are_fatal = true;
-    return test1() || test2();
+    kvm_fatalist = true;
+    return test0() || test1() || test2() || test3() || test4();
 }

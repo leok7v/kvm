@@ -47,6 +47,7 @@
     <ClInclude Include="..\inc\rt\rt_generics.h" />
     <ClInclude Include="..\inc\rt\ustd.h" />
     <ClInclude Include="..\kvm.h" />
+    <ClInclude Include="..\kvm_1.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\kvm.c" />
