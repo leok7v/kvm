@@ -1,12 +1,16 @@
 ﻿# KVM: Key-Value Map in C
 
-The `kvm` library provides a lightweight implementation of a key-value map (dictionary) 
-for C programs, with support for dynamic memory allocation and custom key/value types.
+The `kvm` single file header library provides simple, lightweight 
+implementation of a key-value map (dictionary) for as C23 code, 
+with support for dynamic heap memory allocation and custom 
+key/value types.
+
+Key type values should be equal comparable by ```memcmp()```.
 
 ## Features
 
 - Fixed size or dynamically allocated and automatically growing maps
-- Supports custom key and value types
+- Supports variety of fixed key and value types
 - Configurable error handling
 
 ## Usage
@@ -20,7 +24,7 @@ types for the keys and values and capacity maximum number of entries.
 #include "kvm.h"
 
 int main(void) {
-    kvm_errors_are_fatal = true;
+    kvm_fatalist = true;
     kvm_fixed(int, double, 16) map;
     kvm_init(&map); // return false if initialization fails
     kvm_put(&map, 42, 3.1415); // return false if put fails
@@ -40,7 +44,7 @@ Map will be resizable using malloc()/free():
 #include "kvm.h"
 
 int main(void) {
-    kvm_errors_are_fatal = true;
+    kvm_fatalist = true;
     kvm_heap(int, double) map;
     kvm_alloc(&map, 16);
     kvm_put(&map, 42, 3.1415);
