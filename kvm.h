@@ -1,5 +1,46 @@
 #ifndef kvm_h_included
 #define kvm_h_included
+/*
+    # Usage:
+
+    kvm_fatalist = true; // errors will raise SIGABRT before returning false
+
+    ## To create fixed sized map:
+
+    kvm_fixed(int, double, 16) m;
+
+    Declares a fixed-size map `m` with a maximum of 16 entries,
+    where keys are integers and values are doubles.
+
+    bool kvm_init(m);
+
+    Initializes the map. Must be called before use. Returns false if fails.
+
+    bool kvm_put(m, key, value);
+
+    Inserts a new key-value pair into the map if the key is not present
+    and there is enough space, or replaces the value if the key already exists.
+
+    const value_type* v = kvm_get(m, key);
+
+    Returns null if no pair is associated with the key,
+    or a constant pointer to the value otherwise.
+
+    bool kvm_delete(m, key); // returns false if there was no key in the map
+
+    Removes the key-value pair from the map.
+
+    ## To create a dynamically allocated map on the heap:
+
+    kvm_heap(int, double) m;
+
+    bool kvm_alloc(m, 16); // 16 is initial number of entries in the map
+
+    // map will automatically grow as key-value pairs are added
+
+    kvm_free(m); // must be called to free memory
+
+*/
 
 #include <signal.h>
 #include <stdint.h>
