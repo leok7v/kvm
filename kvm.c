@@ -1,5 +1,7 @@
 ﻿#include "rt/ustd.h"
-#include "kvm_1.h"
+#include "kvm.h"
+#define KMVI_VERIFY
+#include "kvmi.h" // with iterator
 
 #ifndef swear
 
@@ -59,21 +61,29 @@ static int test1(void) {
         }
         kvm_free(&m);
     }
-    {
-        const char* k[] = {"hello", "good bye"};
-        const char* v[] = {"world", "universe"};
-        kvm_fixed(const char*, const char*, 4) m;
-        kvm_init(&m);
-        for (size_t i = 0; i < sizeof(k) / sizeof(k[0]); i++) {
-            kvm_put(&m, k[i], v[i]);
-            swear(*kvm_get(&m, k[i]) == v[i]);
-        }
-        struct kvm_iterator iterator = kvm_iterator(&m);
-        while (kvm_has_next(&iterator)) {
-            const char* key = *kvm_next(&m, &iterator);
-            const char* val = *kvm_get(&m, key);
-            printf("%s: %s\n", key, val);
-        }
+    return 0;
+}
+
+static int test1i(void) {
+    const char* k[] = {"hello", "good bye"};
+    const char* v[] = {"world", "universe"};
+    kvmi_fixed(const char*, const char*, 4) m;
+    kvmi_init(&m);
+    for (size_t i = 0; i < sizeof(k) / sizeof(k[0]); i++) {
+        kvmi_put(&m, k[i], v[i]);
+        swear(*kvmi_get(&m, k[i]) == v[i]);
+    }
+    struct kvmi_iterator iterator = kvmi_iterator(&m);
+    while (kvmi_has_next(&iterator)) {
+        const char* key = *kvmi_next(&m, &iterator);
+        const char* val = *kvmi_get(&m, key);
+        printf("\"%s\": \"%s\"\n", key, val);
+    }
+    iterator = kvmi_iterator(&m);
+    while (kvmi_has_next(&iterator)) {
+        const char* val = 0;
+        const char* key = *kvmi_next_entry(&m, &iterator, &val);
+        printf("\"%s\": \"%s\"\n", key, val);
     }
     return 0;
 }
@@ -86,7 +96,6 @@ static void test2_verify(kvm_int_double* m, double a[], double b[], size_t n) {
         if (isnan(b[j])) {
             swear(q == null);
         } else {
-            if (!q) { kvm_print(m); }
             swear(a[j] == b[j]);
             swear(*q == b[j]);
         }
@@ -108,13 +117,11 @@ static int test2(void) {
     kvm_int_double m;
     kvm_alloc(&m, 4);
     for (int k = 0; k < n * n; k++) {
-        kvm_verify(&m);
         size_t i = (size_t)(rand64(&seed) * n);
         swear(i < n);
         switch ((int)(rand64(&seed) * 3)) {
             case 0: {
                 kvm_put(&m, i, a[i]);
-                kvm_verify(&m);
                 double* p = kvm_get(&m, i);
                 swear(*p == a[i]);
                 b[i] = a[i];
@@ -139,7 +146,6 @@ static int test2(void) {
                     swear(b[i] == *kvm_get(&m, i));
                 }
                 bool deleted = kvm_delete(&m, i);
-                kvm_verify(&m);
                 double* p = kvm_get(&m, i);
                 swear(!p);
                 if (isnan(b[i])) {
@@ -256,5 +262,6 @@ int main(int argc, const char* argv[]) {
         perror("signal(SIGABRT, on_signal) failed\n");
     }
     kvm_fatalist = true;
-    return test0() || test1() || test2() || test3() || test4();
+    kvmi_fatalist = true;
+    return test0() || test1() || test1i() || test2() || test3() || test4();
 }
