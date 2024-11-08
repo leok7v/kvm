@@ -1,5 +1,5 @@
 ﻿#include "rt/ustd.h"
-#include "kvm.h"
+#include "kvm_1.h"
 
 #ifndef swear
 
@@ -59,7 +59,38 @@ static int test1(void) {
         }
         kvm_free(&m);
     }
+    {
+        const char* k[] = {"hello", "good bye"};
+        const char* v[] = {"world", "universe"};
+        kvm_fixed(const char*, const char*, 4) m;
+        kvm_init(&m);
+        for (size_t i = 0; i < sizeof(k) / sizeof(k[0]); i++) {
+            kvm_put(&m, k[i], v[i]);
+            swear(*kvm_get(&m, k[i]) == v[i]);
+        }
+        struct kvm_iterator iterator = kvm_iterator(&m);
+        while (kvm_has_next(&iterator)) {
+            const char* key = *kvm_next(&m, &iterator);
+            const char* val = *kvm_get(&m, key);
+            printf("%s: %s\n", key, val);
+        }
+    }
     return 0;
+}
+
+typedef kvm_heap(size_t, double) kvm_int_double;
+
+static void test2_verify(kvm_int_double* m, double a[], double b[], size_t n) {
+    for (size_t j = 0; j < n; j++) {
+        double* q = kvm_get(m, j);
+        if (isnan(b[j])) {
+            swear(q == null);
+        } else {
+            if (!q) { kvm_print(m); }
+            swear(a[j] == b[j]);
+            swear(*q == b[j]);
+        }
+    }
 }
 
 static int test2(void) {
@@ -68,7 +99,6 @@ static int test2(void) {
     #else
     enum { n = 1024 };
     #endif
-    typedef kvm_heap(size_t, double) kvm_int_double;
     static double a[n];
     static double b[n];
     for (size_t i = 0; i < n; i++) {
@@ -78,26 +108,21 @@ static int test2(void) {
     kvm_int_double m;
     kvm_alloc(&m, 4);
     for (int k = 0; k < n * n; k++) {
-//      if (k % (16 * 1024) == 0) { printf("%zd\n", k / 1024); }
+        kvm_verify(&m);
         size_t i = (size_t)(rand64(&seed) * n);
         swear(i < n);
         switch ((int)(rand64(&seed) * 3)) {
             case 0: {
                 kvm_put(&m, i, a[i]);
+                kvm_verify(&m);
                 double* p = kvm_get(&m, i);
                 swear(*p == a[i]);
                 b[i] = a[i];
-                for (size_t j = 0; j < n; j++) {
-                    double* q = kvm_get(&m, j);
-                    if (isnan(b[j])) { swear(q == null); } else { swear(*q == b[j]); swear(a[j] == b[j]); }
-                }
+                test2_verify(&m, a, b, n);
                 break;
             }
             case 1: {
-                for (size_t j = 0; j < n; j++) {
-                    double* q = kvm_get(&m, j);
-                    if (isnan(b[j])) { swear(q == null); } else { swear(*q == b[j]); swear(a[j] == b[j]); }
-                }
+                test2_verify(&m, a, b, n);
                 double* p = kvm_get(&m, i);
                 if (isnan(b[i])) {
                     swear(!p);
@@ -107,17 +132,14 @@ static int test2(void) {
                 break;
             }
             case 2: {
-                for (size_t j = 0; j < n; j++) {
-                    double* q = kvm_get(&m, j);
-                    if (isnan(b[j])) { swear(q == null); } else { swear(*q == b[j]); swear(a[j] == b[j]); }
-                }
-//              if (i == 0x1B5) { debug = true; rt_breakpoint(); }
+                test2_verify(&m, a, b, n);
                 if (isnan(b[i])) {
                     swear(!kvm_get(&m, i));
                 } else {
                     swear(b[i] == *kvm_get(&m, i));
                 }
                 bool deleted = kvm_delete(&m, i);
+                kvm_verify(&m);
                 double* p = kvm_get(&m, i);
                 swear(!p);
                 if (isnan(b[i])) {
@@ -126,10 +148,7 @@ static int test2(void) {
                     swear(deleted);
                 }
                 b[i] = nan("");
-                for (size_t j = 0; j < n; j++) {
-                    double* q = kvm_get(&m, j);
-                    if (isnan(b[j])) { swear(q == null); } else { swear(*q == b[j]); swear(a[j] == b[j]); }
-                }
+                test2_verify(&m, a, b, n);
                 break;
             }
             default: swear(false); break;

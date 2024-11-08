@@ -50,20 +50,6 @@
 
 bool kvm_fatalist; // any of kvm errors are fatal
 
-#ifndef DEBUG
-
-#if defined(_MSC_VER)
-    #define _kvm_inline __forceinline
-#elif defined(__GNUC__) || defined(__clang__)
-    #define _kvm_inline inline __attribute__((always_inline))
-#else
-    #define _kvm_inline inline
-#endif
-
-#else
-    #define _kvm_inline
-#endif
-
 #define kvm_fatal(...) do {                              \
     if (kvm_fatalist) {                          \
         fprintf(stderr, "" __VA_ARGS__); raise(SIGABRT); \
@@ -130,7 +116,7 @@ static void _kvm_free(void* mv, size_t n) {
     if (n == 1 && m->a != 0) { _kvm_set(mv, 0, 0, 0); m->a = 0; }
 }
 
-static _kvm_inline size_t _kvm_hash(uint64_t key, size_t n) {
+static inline size_t _kvm_hash(uint64_t key, size_t n) {
     key ^= key >> 33;
     key *= 0XFF51AFD7ED558CCDuLL;
     key ^= key >> 33;
@@ -141,7 +127,7 @@ static _kvm_inline size_t _kvm_hash(uint64_t key, size_t n) {
 
 #define _kvm_is_empty(m, i) (((m)->bm[(i) / 64] & (1uLL << ((i) % 64))) == 0)
 
-static _kvm_inline uint64_t _kvm_key(const uint8_t* pkey, const size_t kb) {
+static inline uint64_t _kvm_key(const uint8_t* pkey, const size_t kb) {
     // if compiler propagates constant values of kb to this point
     // it can eliminate sequential ifs and expensive memcpy call
     if (kb == 1) { return *pkey; }
@@ -151,12 +137,12 @@ static _kvm_inline uint64_t _kvm_key(const uint8_t* pkey, const size_t kb) {
     uint64_t key = 0; memcpy(&key, pkey, kb); return key;
 }
 
-static _kvm_inline uint64_t _kvm_key_at(const uint8_t* k, const size_t kb,
+static inline uint64_t _kvm_key_at(const uint8_t* k, const size_t kb,
                                    const size_t i) {
     return _kvm_key(k + i * kb, kb);
 }
 
-static _kvm_inline void _kvm_set_at(uint8_t* d, const size_t i,
+static inline void _kvm_set_at(uint8_t* d, const size_t i,
                               const uint8_t* s, const size_t b) {
     // if compiler propagates constant values of kb to this point
     // it can eliminate sequential ifs and expensive memcpy call
@@ -167,14 +153,14 @@ static _kvm_inline void _kvm_set_at(uint8_t* d, const size_t i,
     memcpy(d + i * b, s, b);
 }
 
-static _kvm_inline void _kvm_move(uint8_t* d, const size_t i,
+static inline void _kvm_move(uint8_t* d, const size_t i,
                             const uint8_t* s, const size_t j, const size_t b) {
     _kvm_set_at(d, i, s + j * b, b);
 }
 
-static const void* _kvm_get(const void* mv, const size_t n,
-                            const size_t kb, const size_t vb,
-                            const void* pkey) {
+const void* _kvm_get(const void* mv, const size_t n,
+                     const size_t kb, const size_t vb,
+                     const void* pkey) {
     const kvm_heap(void*, void*)* m = mv;
     const uint8_t* k = (const uint8_t*)m->pk;
     const uint8_t* v = (const uint8_t*)m->pv;
@@ -228,9 +214,9 @@ static bool _kvm_grow(void* mv, const size_t kb, const size_t vb) {
     }
 }
 
-static bool _kvm_put(void* mv, const size_t n_or_a,
-                     const size_t kb, const size_t vb,
-                     const void* pkey, const void* pval) {
+bool _kvm_put(void* mv, const size_t n_or_a,
+              const size_t kb, const size_t vb,
+              const void* pkey, const void* pval) {
     kvm_heap(void*, void*)* m = mv;
     size_t n = n_or_a;
     if (m->a != 0) {
@@ -265,8 +251,8 @@ static bool _kvm_put(void* mv, const size_t n_or_a,
     return true;
 }
 
-static bool _kvm_delete(void* mv, const size_t n,
-                        size_t kb, size_t vb, const void* pkey) {
+bool _kvm_delete(void* mv, const size_t n,
+                 size_t kb, size_t vb, const void* pkey) {
     kvm_heap(void*, void*)* m = mv;
     const uint8_t* v = _kvm_get(mv, n, kb, vb, pkey);
     if (v) {
