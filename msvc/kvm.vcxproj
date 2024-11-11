@@ -47,11 +47,15 @@
     <ClInclude Include="..\inc\rt\rt_generics.h" />
     <ClInclude Include="..\inc\rt\ustd.h" />
     <ClInclude Include="..\kvm.h" />
-    <ClInclude Include="..\kvmi.h" />
-    <ClInclude Include="..\kvm_1.h" />
+    <ClInclude Include="..\map.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\kvm.c" />
+    <ClCompile Include="..\main.c" />
+    <ClCompile Include="..\map.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\README.md" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>

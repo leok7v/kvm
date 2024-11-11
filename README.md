@@ -25,13 +25,14 @@ types for the keys and values and capacity maximum number of entries.
 
 int main(void) {
     kvm_fatalist = true;
-    kvm_fixed(int, double, 16) map;
-    kvm_init(&map); // return false if initialization fails
+    kvm(int, double, 16) map;
+    kvm_init(&map); // may return false if initialization fails
     kvm_put(&map, 42, 3.1415); // return false if put fails
     const double* e = kvm_get(&map, 42);
     printf("map[42]: %f\n", *e);
     kvm_delete(&map, 42); // returns true if item existed and has been deleted
     assert(!kvm_get(&map, 42));
+    kvm_clar(&map); // no necessary since nothing is allocated
     return 0;    
 }
 ```
@@ -45,8 +46,8 @@ Map will be resizable using malloc()/free():
 
 int main(void) {
     kvm_fatalist = true;
-    kvm_heap(int, double) map;
-    kvm_alloc(&map, 16);
+    kvm(int, double) map; // dynamic map
+    kvm_alloc(&map, 16);  // allocated 16 inital entries on the heap
     kvm_put(&map, 42, 3.1415);
     const double* e = kvm_get(&map, 42);
     printf("map[42]: %f\n", *e);
@@ -60,56 +61,47 @@ int main(void) {
 ## Performance measurements:
 
 ```c
-    enum { n = 16 * 1024 * 1024 };
+    enum { n = 2 * 1024 * 1024 };
     static size_t index[n]; // randomly permutated
     static uint64_t k[n]; // random initialized
     static uint64_t v[n]; // random initialized
-    // 75% occupancy:
-    static kvm_fixed(uint64_t, uint64_t, n + n / 4) m;
-    // or heap allocated:
-//  static kvm_heap(uint64_t, uint64_t) m;
-
+    static kvm(uint64_t, uint64_t, n + n / 4) m;
     kvm_init(&m);
-//  kvm_alloc(&m);
-    ...
     kvm_put(&m, k[index[i]], v[index[i]]);
-    ...
     kvm_get(&m, k[index[i]]);
-    ...
     kvm_delete(&m, k[index[i]]);
-    ...
-//  kvm_free(&m);
 ```
 
-## MacBook Air M3 2024 ARM64 Release build results:
+```c
+    enum { n = 2 * 1024 * 1024 };
+    static size_t index[n]; // randomly permutated
+    static uint64_t k[n]; // random initialized
+    static uint64_t v[n]; // random initialized
+    static kvm(uint64_t, uint64_t) m;
+    kvm_alloc(&m, 16); // allocated and growing on the heap
+    kvm_put(&m, k[index[i]], v[index[i]]);
+    kvm_get(&m, k[index[i]]);
+    kvm_delete(&m, k[index[i]]);
+    kvm_free(&m);
+```
+
+
+## MacBook Air M3 2024 ARM64 Release build results (μs is microseconds):
 
 ```
-static kvm_fixed(uint64_t, uint64_t, 20971520) m;
-kvm_put   : 0.108μs
-kvm_get   : 0.065μs
-kvm_delete: 0.134μs
+static kvm(uint64_t, uint64_t, 20971520) m;
+kvm_put   : 0.061μs
+kvm_get   : 0.050μs
+kvm_delete: 0.096μs
 ```
 
 ```
-static kvm_heap(uint64_t, uint64_t) m;
-kvm_put   : 0.194μs
-kvm_get   : 0.054μs
-kvm_delete: 0.115μs
-time in μs microseconds
+static kvm(uint64_t, uint64_t) m; // heap
+kvm_put   : 0.141μs
+kvm_get   : 0.039μs
+kvm_delete: 0.076μs
 ```
 
 run to run performance fluctuations are due to 
 L1/L2/L3 caches hit/miss variations.
 
-```
-enum { n = 2 * 1024 * 1024 }; // slightly better performance
-
-static kvm_fixed(uint64_t, uint64_t, 2621440) m;
-kvm_put   : 0.080μs
-kvm_get   : 0.050μs
-kvm_delete: 0.098μs
-static kvm_heap(uint64_t, uint64_t) m;
-kvm_put   : 0.136μs
-kvm_get   : 0.041μs
-kvm_delete: 0.081μs
-```
