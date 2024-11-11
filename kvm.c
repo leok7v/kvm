@@ -3,6 +3,8 @@
 #define KMVI_VERIFY
 #include "kvmi.h" // with iterator
 
+#include "kvm_1.h" // experimental map
+
 #ifndef swear
 
 #define swear(b) do {                                                       \
@@ -164,7 +166,7 @@ static int test2(void) {
     return 0;
 }
 
-static void permute(size_t index[], size_t n) {
+static void shuffle(size_t index[], size_t n) {
     for (size_t i = 0; i < n; i++) {
         swap(index[i], index[(size_t)(rand64(&seed) * n)]);
     }
@@ -178,20 +180,20 @@ static int test3(void) {
     // 75% occupancy:
     static kvm_fixed(uint64_t, uint64_t, n + n / 4) m;
     kvm_init(&m);
-    printf("static kvm_fixed(uint64_t, uint64_t, %zd) m;\n", n + n / 4);
+    printf("kvm_fixed(uint64_t, uint64_t, %zd)\n", n + n / 4);
     for (size_t i = 0; i < n; i++) {
         index[i] = i;
         k[i] = random64(&seed);
         v[i] = random64(&seed);
     }
-    permute(index, n);
+    shuffle(index, n);
     uint64_t t = nanoseconds();
     for (size_t i = 0; i < n; i++) {
         kvm_put(&m, k[index[i]], v[index[i]]);
     }
     t = nanoseconds() - t;
     printf("kvm_put   : %.3f" "\xCE\xBC" "s\n", (t * 1e-3) / (double)n);
-    permute(index, n);
+    shuffle(index, n);
     t = nanoseconds();
     for (size_t i = 0; i < n; i++) {
         uint64_t* r = kvm_get(&m, k[index[i]]);
@@ -199,7 +201,7 @@ static int test3(void) {
     }
     t = nanoseconds() - t;
     printf("kvm_get   : %.3f" "\xCE\xBC" "s\n", (t * 1e-3) / (double)n);
-    permute(index, n);
+    shuffle(index, n);
     t = nanoseconds();
     for (size_t i = 0; i < n; i++) {
         bool deleted = kvm_delete(&m, k[index[i]]);
@@ -217,20 +219,20 @@ static int test4(void) {
     static uint64_t v[n];
     static kvm_heap(uint64_t, uint64_t) m;
     kvm_alloc(&m, 16);
-    printf("static kvm_heap(uint64_t, uint64_t) m;\n", n + n / 4);
+    printf("kvm_heap(uint64_t, uint64_t)\n");
     for (size_t i = 0; i < n; i++) {
         index[i] = i;
         k[i] = random64(&seed);
         v[i] = random64(&seed);
     }
-    permute(index, n);
+    shuffle(index, n);
     uint64_t t = nanoseconds();
     for (size_t i = 0; i < n; i++) {
         kvm_put(&m, k[index[i]], v[index[i]]);
     }
     t = nanoseconds() - t;
     printf("kvm_put   : %.3f" "\xCE\xBC" "s\n", (t * 1e-3) / (double)n);
-    permute(index, n);
+    shuffle(index, n);
     t = nanoseconds();
     for (size_t i = 0; i < n; i++) {
         uint64_t* r = kvm_get(&m, k[index[i]]);
@@ -238,7 +240,7 @@ static int test4(void) {
     }
     t = nanoseconds() - t;
     printf("kvm_get   : %.3f" "\xCE\xBC" "s\n", (t * 1e-3) / (double)n);
-    permute(index, n);
+    shuffle(index, n);
     t = nanoseconds();
     for (size_t i = 0; i < n; i++) {
         bool deleted = kvm_delete(&m, k[index[i]]);
@@ -251,17 +253,145 @@ static int test4(void) {
     return 0;
 }
 
+static int test5(void) {
+    const char* k[] = {"hello", "good bye"};
+    const char* v[] = {"world", "universe"};
+    char* hello = strdup(k[0]);
+    char* good_bye = strdup(k[1]);
+    map(const char*, const char*) m;
+    map_alloc(&m, 4);
+    for (size_t i = 0; i < sizeof(k) / sizeof(k[0]); i++) {
+        map_put(&m, k[i], v[i]);
+        swear(*map_get(&m, k[i]) == v[i]);
+    }
+    swear(strcmp(*map_get(&m, hello), v[0]) == 0);
+    swear(strcmp(*map_get(&m, good_bye), v[1]) == 0);
+    struct map_iterator iterator = map_iterator(&m);
+    while (map_has_next(&iterator)) {
+        const char* key = *map_next(&m, &iterator);
+        const char* val = *map_get(&m, key);
+        printf("\"%s\": \"%s\"\n", key, val);
+    }
+    iterator = map_iterator(&m);
+    while (map_has_next(&iterator)) {
+        const char* val = 0;
+        const char* key = *map_next_entry(&m, &iterator, &val);
+        printf("\"%s\": \"%s\"\n", key, val);
+    }
+    map_free(&m);
+    free(hello);
+    free(good_bye);
+    return 0;
+}
+
+static int test6(void) {
+    const char* k[] = {"hello", "good bye"};
+    const char* v[] = {"world", "universe"};
+    char* hello = strdup(k[0]);
+    char* good_bye = strdup(k[1]);
+    map(const char*, const char*) m;
+    map_str(&m, 4);
+    for (size_t i = 0; i < sizeof(k) / sizeof(k[0]); i++) {
+        map_put(&m, k[i], v[i]);
+        swear(*map_get(&m, k[i]) != v[i]); // duplicated
+        swear(strcmp(*map_get(&m, k[i]), v[i]) == 0);
+    }
+    swear(strcmp(*map_get(&m, hello), v[0]) == 0);
+    swear(strcmp(*map_get(&m, good_bye), v[1]) == 0);
+    struct map_iterator iterator = map_iterator(&m);
+    while (map_has_next(&iterator)) {
+        const char* key = *map_next(&m, &iterator);
+        const char* val = *map_get(&m, key);
+        printf("\"%s\": \"%s\"\n", key, val);
+        swear(key != k[0] && key != k[1]); // duplicated
+        swear(val != v[0] && val != v[1]); // duplicated
+    }
+    iterator = map_iterator(&m);
+    while (map_has_next(&iterator)) {
+        const char* val = 0;
+        const char* key = *map_next_entry(&m, &iterator, &val);
+        printf("\"%s\": \"%s\"\n", key, val);
+    }
+    map_clear(&m);
+    map_put(&m, null, "Hello");
+    map_put(&m, "Hello", null);
+    swear(strcmp(*map_get(&m, null), "Hello") == 0);
+    swear(*map_get(&m, "Hello") == null);
+    map_clear(&m);
+    map_put(&m, "", "Hello");
+    map_put(&m, "Hello", "");
+    swear(strcmp(*map_get(&m, ""), "Hello") == 0);
+    swear(strcmp(*map_get(&m, "Hello"), "") == 0);
+    map_free(&m);
+    free(hello);
+    free(good_bye);
+    return 0;
+}
+
+static int test7(void) {
+    enum { n = 1 * 1024 * 1024 };
+    static size_t index[n];
+    static uint64_t k[n];
+    static uint64_t v[n];
+    static char ks[n][32];
+    static char vs[n][32];
+    static map(const char*, const char*) m;
+    map_str(&m, 8);
+    printf("map(const char*, const char*)\n");
+    for (size_t i = 0; i < n; i++) {
+        index[i] = i;
+        k[i] = random64(&seed);
+        v[i] = random64(&seed);
+        // UINT64_MAX = 18,446,744,073,709,551,615 (20 decimal digits)
+        snprintf(ks[i], sizeof(ks[i]), "%lld", k[i]);
+        snprintf(vs[i], sizeof(vs[i]), "%lld", v[i]);
+    }
+    shuffle(index, n);
+    uint64_t t = nanoseconds();
+    for (size_t i = 0; i < n; i++) {
+        map_put(&m, ks[index[i]], vs[index[i]]);
+    }
+    t = nanoseconds() - t;
+    printf("map_put   : %.3f" "\xCE\xBC" "s\n", (t * 1e-3) / (double)n);
+    shuffle(index, n);
+    t = nanoseconds();
+    for (size_t i = 0; i < n; i++) {
+        const char* *r = map_get(&m, ks[index[i]]);
+        swear(strcmp(*r, vs[index[i]]) == 0);
+    }
+    t = nanoseconds() - t;
+    printf("map_get   : %.3f" "\xCE\xBC" "s\n", (t * 1e-3) / (double)n);
+    shuffle(index, n);
+    t = nanoseconds();
+    for (size_t i = 0; i < n; i++) {
+        bool deleted = map_delete(&m, ks[index[i]]);
+        swear(deleted);
+    }
+    t = nanoseconds() - t;
+    printf("map_delete: %.3f" "\xCE\xBC" "s\n", (t * 1e-3) / (double)n);
+    map_free(&m);
+    printf("time in " "\xCE\xBC" "s microseconds\n");
+    return 0;
+}
+
 static void on_signal(int signum) {
     fprintf(stderr, "signal: %d\n", signum);
     exit(EXIT_FAILURE);
 }
 
-int main(int argc, const char* argv[]) {
-    (void)argc; (void)argv; // unused
+static void set_on_signal(void) {
     if (signal(SIGABRT, on_signal) == SIG_ERR) {
         perror("signal(SIGABRT, on_signal) failed\n");
+        exit(EXIT_FAILURE);
     }
-    kvm_fatalist = true;
+}
+
+int main(int argc, const char* argv[]) {
+    (void)argc; (void)argv; // unused
+    set_on_signal();
+    kvm_fatalist  = true;
     kvmi_fatalist = true;
-    return test0() || test1() || test1i() || test2() || test3() || test4();
+    map_fatalist  = true;
+    return test0() || test1() || test1i() || test2() || test3() ||
+           test4() || test5() || test6()  || test7();
 }

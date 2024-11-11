@@ -71,14 +71,19 @@ bool kvm_fatalist; // any of kvm errors are fatal
 #define kvm_heap(tk, tv) kvm_fixed(tk, tv, 0)
 
 static bool _kvm_init(void* mv, void* k, void* v, size_t n) {
-    kvm_heap(void*, void*)* m = mv;
-    memset(m->bitmap, 0, sizeof(m->bitmap));
-    m->a  = 0;
-    m->n  = 0;
-    m->pk = k;
-    m->pv = v;
-    m->bm = m->bitmap;
-    return n > 1;
+    if (n < 4) {
+        kvm_fatal("invalid argument n: %zd minimum 4\n", n);
+        return false;
+    } else {
+        kvm_heap(void*, void*)* m = mv;
+        memset(m->bitmap, 0, sizeof(m->bitmap));
+        m->a  = 0;
+        m->n  = 0;
+        m->pk = k;
+        m->pv = v;
+        m->bm = m->bitmap;
+        return true;
+    }
 }
 
 // `kb` key bytes sizeof(tk) key type
@@ -86,7 +91,7 @@ static bool _kvm_init(void* mv, void* k, void* v, size_t n) {
 
 static bool _kvm_alloc(void* mv,  size_t kb, size_t vb, size_t n) {
     kvm_heap(void*, void*)* m = mv;
-    if (n > 0) { // dynamically allocated map
+    if (n >= 4) { // dynamically allocated map
         m->pk = malloc(n * kb);
         m->pv = malloc(n * vb);
         m->bm = calloc((n + 63) / 64, sizeof(uint64_t)); // zero init
@@ -254,21 +259,34 @@ bool _kvm_put(void* mv, const size_t n_or_a,
 bool _kvm_delete(void* mv, const size_t n,
                  size_t kb, size_t vb, const void* pkey) {
     kvm_heap(void*, void*)* m = mv;
-    const uint8_t* v = _kvm_get(mv, n, kb, vb, pkey);
-    if (v) {
-        size_t i = (v - (const uint8_t*)m->pv) / vb;
-        size_t x = i;
-        uint8_t* k = (uint8_t*)m->pk;
-        uint8_t* v_cast = (uint8_t*)m->pv;
+    uint8_t* k = (uint8_t*)m->pk;
+    uint8_t* v = (uint8_t*)m->pv;
+    const uint64_t key = _kvm_key(pkey, kb);
+    size_t h = _kvm_hash(key, n);
+    bool found = false;
+    size_t i = h; // start
+    while (!found && !_kvm_is_empty(m, i)) {
+        const uint64_t ki = _kvm_key_at(k, kb, i);
+        found = ki == key;
+        if (!found) {
+            i = (i + 1) % n;
+            if (i == h) { break; }
+        }
+    }
+    if (found) {
         m->bm[i / 64] &= ~(1uLL << (i % 64));
+        size_t x = i;
         for (;;) {
             x = (x + 1) % n;
             if (_kvm_is_empty(m, x)) { break; }
-            size_t h = _kvm_hash(_kvm_key_at(k, kb, x), n);
-            // Check if `h` lies within [i, x), accounting for wrap-around:
-            if ((x < i) ^ (h <= i) ^ (h > x)) {
+            assert(x != i); // because empty slot exists
+            const uint64_t kx = _kvm_key_at(k, kb, x);
+            h = _kvm_hash(kx, n);
+            const bool can_move = i <= x ? x < h || h <= i :
+                                           x < h && h <= i;
+            if (can_move) {
                 _kvm_move(k, i, k, x, kb);
-                _kvm_move(v_cast, i, v_cast, x, vb);
+                _kvm_move(v, i, v, x, vb);
                 m->bm[i / 64] |=  (1uLL << (i % 64));
                 m->bm[x / 64] &= ~(1uLL << (x % 64));
                 i = x;
@@ -276,7 +294,7 @@ bool _kvm_delete(void* mv, const size_t n,
         }
         m->n--;
     }
-    return v;
+    return found;
 }
 
 #define kvm_tk(m) typeof((m)->k[0]) // type of key
@@ -292,14 +310,17 @@ bool _kvm_delete(void* mv, const size_t n,
 
 #define kvm_capacity(m) ((m)->a > 0 ? (m)->a : kvm_fixed_n(m))
 
-#define kvm_init(m)  _kvm_init((void*)m, &(m)->k, &(m)->v, kvm_fixed_n(m))
+#define kvm_init(m)  _kvm_init(m, &(m)->k, &(m)->v, kvm_fixed_n(m))
 
-#define kvm_alloc(m, n) _kvm_alloc((void*)m, kvm_kb(m), kvm_vb(m), n)
+#define kvm_alloc(m, n) _kvm_alloc(m, kvm_kb(m), kvm_vb(m), n)
 
-#define kvm_free(m) _kvm_free((void*)m, kvm_fixed_n(m))
+#define kvm_free(m) _kvm_free(m, kvm_fixed_n(m))
 
 #define kvm_put(m, key, val) _kvm_put(m, kvm_capacity(m), \
     kvm_kb(m), kvm_vb(m), kvm_ka(m, key), kvm_va(m, val))
+
+#define kvm_has(m, key) (kvm_tv(m)*)_kvm_has(m, kvm_capacity(m), \
+    kvm_kb(m), kvm_vb(m), kvm_ka(m, key))
 
 #define kvm_get(m, key) (kvm_tv(m)*)_kvm_get(m, kvm_capacity(m), \
     kvm_kb(m), kvm_vb(m), kvm_ka(m, key))

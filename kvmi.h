@@ -79,17 +79,22 @@ struct kvmi_iterator {
 #define kvmi_heap(tk, tv) kvmi_fixed(tk, tv, 0)
 
 static bool _kvmi_init(void* mv, void* k, void* v, void* list, size_t n) {
-    kvmi_heap(void*, void*)* m = mv;
-    memset(m->bitmap, 0, sizeof(m->bitmap));
-    m->a  = 0;
-    m->n  = 0;
-    m->pk = k;
-    m->pv = v;
-    m->pn = list;
-    m->bm = m->bitmap;
-    m->head = 0;
-    m->mc = 0;
-    return n > 1;
+    if (n < 4) {
+        kvmi_fatal("invalid argument n: %zd minimum 4\n", n);
+        return false;
+    } else {
+        kvmi_heap(void*, void*)* m = mv;
+        memset(m->bitmap, 0, sizeof(m->bitmap));
+        m->a  = 0;
+        m->n  = 0;
+        m->pk = k;
+        m->pv = v;
+        m->pn = list;
+        m->bm = m->bitmap;
+        m->head = 0;
+        m->mc = 0;
+        return true;
+    }
 }
 
 // `kb` key bytes sizeof(tk) key type
@@ -97,7 +102,7 @@ static bool _kvmi_init(void* mv, void* k, void* v, void* list, size_t n) {
 
 static bool _kvmi_alloc(void* mv,  size_t kb, size_t vb, size_t n) {
     kvmi_heap(void*, void*)* m = mv;
-    if (n > 0) { // dynamically allocated map
+    if (n >= 4) { // dynamically allocated map
         m->pk = malloc(n * kb);
         m->pv = malloc(n * vb);
         m->bm = calloc((n + 63) / 64, sizeof(uint64_t)); // zero init
@@ -113,7 +118,7 @@ static bool _kvmi_alloc(void* mv,  size_t kb, size_t vb, size_t n) {
         m->mc = 0;
         return true;
     } else { // invalid usage
-        kvmi_fatal("invalid argument n: %zd\n", n);
+        kvmi_fatal("invalid argument n: %zd minimum 4\n", n);
         return false;
     }
 }
@@ -346,22 +351,35 @@ bool _kvmi_put(void* mv, const size_t capacity,
 bool _kvmi_delete(void* mv, const size_t n, size_t kb, size_t vb,
                  const void* pkey) {
     kvmi_heap(void*, void*)* m = mv;
-    const uint8_t* v = _kvmi_get(mv, n, kb, vb, pkey);
-    if (v) {
-        size_t i = (v - (const uint8_t*)m->pv) / vb;
-        size_t x = i;
-        uint8_t* k = (uint8_t*)m->pk;
-        uint8_t* v_cast = (uint8_t*)m->pv;
+    uint8_t* k = (uint8_t*)m->pk;
+    uint8_t* v = (uint8_t*)m->pv;
+    const uint64_t key = _kvmi_key(pkey, kb);
+    size_t h = _kvmi_hash(key, n);
+    bool found = false;
+    size_t i = h; // start
+    while (!found && !_kvmi_is_empty(m, i)) {
+        const uint64_t ki = _kvmi_key_at(k, kb, i);
+        found = ki == key;
+        if (!found) {
+            i = (i + 1) % n;
+            if (i == h) { break; }
+        }
+    }
+    if (found) {
         m->bm[i / 64] &= ~(1uLL << (i % 64));
         _kvmi_unlink(&m->head, m->pn, i);
+        size_t x = i;
         for (;;) {
             x = (x + 1) % n;
             if (_kvmi_is_empty(m, x)) { break; }
-            size_t h = _kvmi_hash(_kvmi_key_at(k, kb, x), n);
-            // Check if `h` lies within [i, x), accounting for wrap-around:
-            if ((x < i) ^ (h <= i) ^ (h > x)) {
+            assert(x != i); // because empty slot exists
+            const uint64_t kx = _kvmi_key_at(k, kb, x);
+            h = _kvmi_hash(kx, n);
+            const bool can_move = i <= x ? x < h || h <= i :
+                                           x < h && h <= i;
+            if (can_move) {
                 _kvmi_move(k, i, k, x, kb);
-                _kvmi_move(v_cast, i, v_cast, x, vb);
+                _kvmi_move(v, i, v, x, vb);
                 m->bm[i / 64] |=  (1uLL << (i % 64));
                 m->bm[x / 64] &= ~(1uLL << (x % 64));
                 _kvmi_unlink(&m->head, m->pn, x);
@@ -372,7 +390,7 @@ bool _kvmi_delete(void* mv, const size_t n, size_t kb, size_t vb,
         m->mc++;
         m->n--;
     }
-    return v;
+    return found;
 }
 
 struct kvmi_iterator kvmi_iterator(void* mv) {
@@ -441,12 +459,12 @@ static void _kvmi_print(void* mv, size_t n, size_t kb, size_t vb) {
 
 #define kvmi_capacity(m) ((m)->a > 0 ? (m)->a : kvmi_fixed_n(m))
 
-#define kvmi_init(m)  _kvmi_init((void*)m, &(m)->k, &(m)->v, &(m)->list, \
+#define kvmi_init(m)  _kvmi_init(m, &(m)->k, &(m)->v, &(m)->list, \
                                  kvmi_fixed_n(m))
 
-#define kvmi_alloc(m, n) _kvmi_alloc((void*)m, kvmi_kb(m), kvmi_vb(m), n)
+#define kvmi_alloc(m, n) _kvmi_alloc(m, kvmi_kb(m), kvmi_vb(m), n)
 
-#define kvmi_free(m) _kvmi_free((void*)m, kvmi_fixed_n(m))
+#define kvmi_free(m) _kvmi_free(m, kvmi_fixed_n(m))
 
 #define kvmi_put(m, key, val) _kvmi_put(m, kvmi_capacity(m), \
     kvmi_kb(m), kvmi_vb(m), kvmi_ka(m, key), kvmi_va(m, val))
