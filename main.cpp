@@ -52,7 +52,6 @@ static int cpp_test1() {
     t = rt_nanoseconds() - t;
     rt_printf("unordered_map::get   : %.3f" "\xCE\xBC" "s\n",
               ((double)t * 1e-3) / (double)n);
-
     shuffle(index, n);
     t = rt_nanoseconds();
     for (size_t i = 0; i < n; i++) {
@@ -78,7 +77,6 @@ static int cpp_test2(void) {
         index[i] = i;
         k[i] = rt_random64(&seed);
         v[i] = rt_random64(&seed);
-        // UINT64_MAX = 18,446,744,073,709,551,615 (20 decimal digits)
         snprintf(ks[i], sizeof(ks[i]), "%lld", k[i]);
         snprintf(vs[i], sizeof(vs[i]), "%lld", v[i]);
     }
