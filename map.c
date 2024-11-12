@@ -337,7 +337,7 @@ static int test8(void) {
     static char vs[n][32];
     static map(const char*, const char*, map_heap, map_strdup) m;
     map_alloc(&m, 8);
-    printf("map(const char*, const char*)\n");
+    printf("map(const char*, const char*, map_heap, map_strdup)\n");
     for (size_t i = 0; i < n; i++) {
         index[i] = i;
         k[i] = random64(&seed);
