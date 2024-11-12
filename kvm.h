@@ -96,47 +96,48 @@ void _kvm_free(void* mv, size_t c);
 } // extern "C"
 #endif
 
-#define kvm_2_arg(tk, tv)           kvm_struct(tk, tv, 0)
-#define kvm_3_arg(tk, tv, n)        kvm_struct(tk, tv, n)
-#define kvm_get_4th_arg(arg1, arg2, arg3, arg4, ...) arg4
-#define kvm_chooser(...) kvm_get_4th_arg(__VA_ARGS__, kvm_3_arg, kvm_2_arg, )
-#define kvm(...) kvm_chooser(__VA_ARGS__)(__VA_ARGS__)
+#define _kvm_2_arg(tk, tv)           kvm_struct(tk, tv, 0)
+#define _kvm_3_arg(tk, tv, n)        kvm_struct(tk, tv, n)
+#define _kvm_get_4th_arg(arg1, arg2, arg3, arg4, ...) arg4
+#define _kvm_chooser(...) _kvm_get_4th_arg(__VA_ARGS__, _kvm_3_arg, _kvm_2_arg, )
+#define kvm(...) _kvm_chooser(__VA_ARGS__)(__VA_ARGS__)
 
 #define _kvm_alloc_and_init(m, n) \
-    _kvm_init(m, kvm_kb(m), kvm_vb(m), n, &(m)->k, &(m)->v, kvm_fixed_c(m))
+    _kvm_init(m, _kvm_kb(m), _kvm_vb(m), n, &(m)->k, &(m)->v, _kvm_fixed_c(m))
 
 
 #define _kvm_init_1_arg(m)    _kvm_alloc_and_init(m, 0)
 #define _kvm_init_2_arg(m, n) _kvm_alloc_and_init(m, n)
 #define _kvm_get_3rd_arg(arg1, arg2, arg3, ...) arg3
-#define _kvm_init_chooser(...) _kvm_get_3rd_arg(__VA_ARGS__, _kvm_init_2_arg, _kvm_init_1_arg, )
+#define _kvm_init_chooser(...) _kvm_get_3rd_arg(__VA_ARGS__, \
+                               _kvm_init_2_arg, _kvm_init_1_arg, )
 #define kvm_alloc(...) _kvm_init_chooser(__VA_ARGS__)(__VA_ARGS__)
 #define kvm_init(m)    _kvm_alloc_and_init(m, 0)
 
-#define kvm_tk(m) typeof((m)->k[0]) // type of key
-#define kvm_tv(m) typeof((m)->v[0]) // type of val
+#define _kvm_tk(m) typeof((m)->k[0]) // type of key
+#define _kvm_tv(m) typeof((m)->v[0]) // type of val
 
-#define kvm_ka(m, key) (&(kvm_tk(m)){(key)}) // key address
-#define kvm_va(m, val) (&(kvm_tv(m)){(val)}) // val address
+#define _kvm_ka(m, key) (&(_kvm_tk(m)){(key)}) // key address
+#define _kvm_va(m, val) (&(_kvm_tv(m)){(val)}) // val address
 
-#define kvm_kb(m) sizeof((m)->k[0]) // number of bytes in key
-#define kvm_vb(m) sizeof((m)->v[0]) // number of bytes in val
+#define _kvm_kb(m) sizeof((m)->k[0]) // number of bytes in key
+#define _kvm_vb(m) sizeof((m)->v[0]) // number of bytes in val
 
-#define kvm_fixed_c(m) (sizeof((m)->k) / kvm_kb(m))
+#define _kvm_fixed_c(m) (sizeof((m)->k) / _kvm_kb(m))
 
-#define kvm_capacity(m) ((m)->a > 0 ? (m)->a : kvm_fixed_c(m))
+#define kvm_capacity(m) ((m)->a > 0 ? (m)->a : _kvm_fixed_c(m))
 
-#define kvm_clear(m) _kvm_clear(m, kvm_fixed_c(m))
-#define kvm_free(m)  _kvm_free(m, kvm_fixed_c(m))
+#define kvm_clear(m) _kvm_clear(m, _kvm_fixed_c(m))
+#define kvm_free(m)  _kvm_free(m,  _kvm_fixed_c(m))
 
 #define kvm_put(m, key, val) _kvm_put(m, kvm_capacity(m), \
-    kvm_kb(m), kvm_vb(m), kvm_ka(m, key), kvm_va(m, val))
+    _kvm_kb(m), _kvm_vb(m), _kvm_ka(m, key), _kvm_va(m, val))
 
-#define kvm_get(m, key) (kvm_tv(m)*)_kvm_get(m, kvm_capacity(m), \
-    kvm_kb(m), kvm_vb(m), kvm_ka(m, key))
+#define kvm_get(m, key) (_kvm_tv(m)*)_kvm_get(m, kvm_capacity(m), \
+    _kvm_kb(m), _kvm_vb(m), _kvm_ka(m, key))
 
 #define kvm_delete(m, key) _kvm_delete(m, kvm_capacity(m), \
-    kvm_kb(m), kvm_vb(m), kvm_ka(m, key))
+    _kvm_kb(m), _kvm_vb(m), _kvm_ka(m, key))
 
 #endif // kvm_h_included
 
@@ -226,8 +227,8 @@ static inline size_t _kvm_hash(uint64_t key, size_t c) {
     return (size_t)(key % c);
 }
 
-#define _kvm_bm_include(bm, i) do { bm[i / 64] |=  (1uLL << (i % 64)); } while (0)
-#define _kvm_bm_exclude(bm, i) do { bm[i / 64] &= ~(1uLL << (i % 64)); } while (0)
+#define _kvm_bm_incl(bm, i) do { bm[i / 64] |=  (1uLL << (i % 64)); } while (0)
+#define _kvm_bm_excl(bm, i) do { bm[i / 64] &= ~(1uLL << (i % 64)); } while (0)
 #define _kvm_bm_is_empty(bm, i) ((bm[(i) / 64] & (1uLL << ((i) % 64))) == 0)
 
 #define _kvm_is_empty(m, i) _kvm_bm_is_empty((m)->bm, i)
@@ -316,7 +317,7 @@ static bool _kvm_grow(kvm_t* m, const size_t kb, const size_t vb) {
                     h = (h + 1) % a;  // new kv map cannot be full
                 }
                 _kvm_move_entry(pk, pv, h, k, v, i, kb, vb);
-                _kvm_bm_include(bm, h);
+                _kvm_bm_incl(bm, h);
             }
         }
         _kvm_set_pointers(m, pk, pv, bm);
@@ -352,7 +353,7 @@ bool _kvm_put(void* mv, const size_t capacity,
         }
     }
     _kvm_set_entry(k, v, i, pkey, pval, kb, vb);
-    _kvm_bm_include(m->bm, i);
+    _kvm_bm_incl(m->bm, i);
     m->n++;
     return true;
 }
@@ -375,7 +376,7 @@ bool _kvm_delete(void* mv, const size_t c,
         }
     }
     if (found) {
-        _kvm_bm_exclude(m->bm, i);
+        _kvm_bm_excl(m->bm, i);
         size_t x = i;
         for (;;) {
             x = (x + 1) % c;
@@ -387,8 +388,8 @@ bool _kvm_delete(void* mv, const size_t c,
                                            x < h && h <= i;
             if (can_move) {
                 _kvm_move_entry(k, v, i, k, v, x, kb, vb);
-                _kvm_bm_include(m->bm, i);
-                _kvm_bm_exclude(m->bm, x);
+                _kvm_bm_incl(m->bm, i);
+                _kvm_bm_excl(m->bm, x);
                 i = x;
             }
         }

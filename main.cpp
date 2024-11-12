@@ -124,15 +124,11 @@ static void set_on_signal(void) {
 
 int main(int argc, const char* argv[]) {
     (void)argc; (void)argv; // unused
-    try {
-        set_on_signal();
-        if (kvm_tests()) { return 1; }
-        if (map_tests()) { return 1; }
-        if (cpp_test1()) { return 1; }
-        if (cpp_test2()) { return 1; }
-    } catch (...) {
-        return 1;
-    }
+    set_on_signal();
+    if (kvm_tests()) { return 1; }
+    if (map_tests()) { return 1; }
+    if (cpp_test1()) { return 1; }
+    if (cpp_test2()) { return 1; }
     return 0;
 }
 

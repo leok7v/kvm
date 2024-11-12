@@ -114,64 +114,64 @@ void _map_free(void* mv, size_t c, size_t kb, size_t vb);
 } // extern "C"
 #endif
 
-#define map_2_arg(tk, tv)           map_struct(tk, tv, 0, 0)
-#define map_3_arg(tk, tv, n)        map_struct(tk, tv, n, 0)
-#define map_4_arg(tk, tv, n, tags)  map_struct(tk, tv, n, tags)
-#define map_get_5th_arg(arg1, arg2, arg3, arg4, arg5, ...) arg5
-#define map_chooser(...) map_get_5th_arg(__VA_ARGS__, map_4_arg, map_3_arg, map_2_arg, )
-#define map(...) map_chooser(__VA_ARGS__)(__VA_ARGS__)
+#define _map_2_arg(tk, tv)           map_struct(tk, tv, 0, 0)
+#define _map_3_arg(tk, tv, n)        map_struct(tk, tv, n, 0)
+#define _map_4_arg(tk, tv, n, tags)  map_struct(tk, tv, n, tags)
+#define _map_get_5th_arg(arg1, arg2, arg3, arg4, arg5, ...) arg5
+#define _map_chooser(...) _map_get_5th_arg(__VA_ARGS__, \
+                          _map_4_arg, _map_3_arg, _map_2_arg, )
+#define map(...) _map_chooser(__VA_ARGS__)(__VA_ARGS__)
 
-#define map_tk(m) typeof((m)->k[0]) // type of key
-#define map_tv(m) typeof((m)->v[0]) // type of val
+#define _map_tk(m) typeof((m)->k[0]) // type of key
+#define _map_tv(m) typeof((m)->v[0]) // type of val
 
-#define map_ka(m, key) (&(map_tk(m)){(key)}) // key address
-#define map_va(m, val) (&(map_tv(m)){(val)}) // val address
+#define _map_ka(m, key) (&(_map_tk(m)){(key)}) // key address
+#define _map_va(m, val) (&(_map_tv(m)){(val)}) // val address
 
-#define map_kb(m) sizeof((m)->k[0]) // number of bytes in key
-#define map_vb(m) sizeof((m)->v[0]) // number of bytes in val
+#define _map_kb(m) sizeof((m)->k[0]) // number of bytes in key
+#define _map_vb(m) sizeof((m)->v[0]) // number of bytes in val
 
-#define map_fixed_c(m) (sizeof((m)->k) / map_kb(m))
+#define _map_fixed_c(m) (sizeof((m)->k) / _map_kb(m))
 
-#define map_capacity(m) ((m)->a > 0 ? (m)->a : map_fixed_c(m))
+#define map_capacity(m) ((m)->a > 0 ? (m)->a : _map_fixed_c(m))
 
-#define map_init(m, n) _Generic(((m)->k[0]),                                \
-     const char*:                                                           \
-        _map_init((void*)m, sizeof((m)->tags) - 1, map_kb(m), map_vb(m), n, \
-                  &(m)->k, &(m)->v, &(m)->list, map_fixed_c(m),             \
-                  _map_str_cmp, _map_str_hash),                             \
-     default:                                                               \
-        _map_init((void*)m, sizeof((m)->tags) - 1, map_kb(m), map_vb(m), n, \
-                  &(m)->k, &(m)->v, &(m)->list, map_fixed_c(m),             \
-                  /*_map_str_cmp: */0, /*_map_str_hash: */ 0)               \
+#define map_init(m, n) _Generic(((m)->k[0]),                           \
+     const char*:                                                      \
+        _map_init(m, sizeof((m)->tags) - 1, _map_kb(m), _map_vb(m), n, \
+                  &(m)->k, &(m)->v, &(m)->list, _map_fixed_c(m),       \
+                  _map_str_cmp, _map_str_hash),                        \
+     default:                                                          \
+        _map_init(m, sizeof((m)->tags) - 1, _map_kb(m), _map_vb(m), n, \
+                  &(m)->k, &(m)->v, &(m)->list, _map_fixed_c(m),       \
+                  /*_map_str_cmp: */0, /*_map_str_hash: */ 0)          \
 )
 
-#define map_init_1_arg(m)    map_init(m, 0)
-#define map_init_2_arg(m, n) map_init(m, n)
-#define map_get_3rd_arg(arg1, arg2, arg3, ...) arg3
-#define map_init_chooser(...) map_get_3rd_arg(__VA_ARGS__, map_init_2_arg, map_init_1_arg, )
-#define map_alloc(...) map_init_chooser(__VA_ARGS__)(__VA_ARGS__)
+#define _map_init_1_arg(m)    map_init(m, 0)
+#define _map_init_2_arg(m, n) map_init(m, n)
+#define _map_get_3rd_arg(arg1, arg2, arg3, ...) arg3
+#define _map_init_chooser(...) _map_get_3rd_arg(__VA_ARGS__, \
+                               _map_init_2_arg, _map_init_1_arg, )
+#define map_alloc(...) _map_init_chooser(__VA_ARGS__)(__VA_ARGS__)
 
-#define map_clear(m) _map_clear((void*)m, map_fixed_c(m), map_kb(m), map_vb(m))
-#define map_free(m) _map_free((void*)m, map_fixed_c(m), map_kb(m), map_vb(m))
+#define map_clear(m) _map_clear(m, _map_fixed_c(m), _map_kb(m), _map_vb(m))
+#define map_free(m)  _map_free(m,  _map_fixed_c(m), _map_kb(m), _map_vb(m))
 
 #define map_put(m, key, val) _map_put(m, map_capacity(m), \
-    map_kb(m), map_vb(m), map_ka(m, key), map_va(m, val))
+    _map_kb(m), _map_vb(m), _map_ka(m, key), _map_va(m, val))
 
-#define map_get(m, key) (map_tv(m)*)_map_get(m, map_capacity(m), \
-    map_kb(m), map_vb(m), map_ka(m, key))
+#define map_get(m, key) (_map_tv(m)*)_map_get(m, map_capacity(m), \
+    _map_kb(m), _map_vb(m), _map_ka(m, key))
 
 #define map_delete(m, key) _map_delete(m, map_capacity(m), \
-    map_kb(m), map_vb(m), map_ka(m, key))
+    _map_kb(m), _map_vb(m), _map_ka(m, key))
 
-#define map_verify(m) _map_verify(m, map_capacity(m))
-
-#define map_print(m) _map_print(m, map_capacity(m), map_kb(m), map_vb(m))
+#define map_print(m) _map_print(m, map_capacity(m), _map_kb(m), _map_vb(m))
 
 #define map_next(m, iterator) \
-        (map_tk(m)*)_map_next(iterator, map_kb(m), map_vb(m), 0)
+        (_map_tk(m)*)_map_next(iterator, _map_kb(m), _map_vb(m), 0)
 
 #define map_next_entry(m, iterator, pv) \
-        (map_tk(m)*)_map_next(iterator, map_kb(m), map_vb(m), pv)
+        (_map_tk(m)*)_map_next(iterator, _map_kb(m), _map_vb(m), pv)
 
 #endif // map_h_included
 
@@ -356,8 +356,8 @@ int _map_str_cmp(uint64_t k0, uint64_t k1) {
         strcmp((const char*)(uintptr_t)k0, (const char*)(uintptr_t)k1);
 }
 
-#define _map_bm_include(bm, i) do { bm[i / 64] |=  (1uLL << (i % 64)); } while (0)
-#define _map_bm_exclude(bm, i) do { bm[i / 64] &= ~(1uLL << (i % 64)); } while (0)
+#define _map_bm_incl(bm, i) do { bm[i / 64] |=  (1uLL << (i % 64)); } while (0)
+#define _map_bm_excl(bm, i) do { bm[i / 64] &= ~(1uLL << (i % 64)); } while (0)
 #define _map_bm_is_empty(bm, i) ((bm[(i) / 64] & (1uLL << ((i) % 64))) == 0)
 
 #define _map_is_empty(m, i) _map_bm_is_empty((m)->bm, i)
@@ -449,51 +449,6 @@ static void _map_unlink(struct _map_list** head,
     pn[i].prev->next = pn[i].next;
 }
 
-#ifdef map_VERIFY
-
-static bool _map_find(void* mv, size_t i) {
-    map_t* m = mv;
-    struct _map_list* node = m->head;
-    if (node) {
-        do {
-            size_t j = node - m->pn;
-            if (j == i) { return true; }
-            node = node->next;
-        } while (node != m->head);
-    }
-    return false;
-}
-
-#endif
-
-static void _map_verify(void* mv, size_t c) {
-    #ifdef map_VERIFY
-    map_t* m = mv;
-    size_t count = 0;
-    struct _map_list* node = m->head;
-    if (node) {
-        do { count++; node = node->next; } while (node != m->head);
-    }
-    assert(count == m->n);
-    node = m->head;
-    if (node) {
-        do {
-            size_t i = node - m->pn;
-            assert(i < n); (void)i;
-            assert(!_map_is_empty(m, i));
-            node = node->next;
-        } while (node != m->head);
-    }
-    for (size_t i = 0; i < c; i++) {
-        const bool empty = _map_is_empty(m, i);
-        const bool found = _map_find(m, i);
-        assert(empty == !found); (void)empty; (void)found;
-    }
-    #else
-    (void)mv; (void)c;
-    #endif
-}
-
 static bool _map_grow(map_t* m, const size_t kb, const size_t vb) {
     if (m->a >= (size_t)(UINTPTR_MAX / 2)) {
         _map_fatal_return_zero("overflow: %zd\n", m->a);
@@ -520,7 +475,7 @@ static bool _map_grow(map_t* m, const size_t kb, const size_t vb) {
                 h = (h + 1) % a;  // new kv map cannot be full
             }
             _map_move_entry(pk, pv, h, k, v, i, kb, vb);
-            _map_bm_include(bm, h);
+            _map_bm_incl(bm, h);
             _map_link(&head, pn, h);
             node = node->next;
         } while (node != m->head);
@@ -580,7 +535,7 @@ bool _map_put(void* mv, const size_t capacity, const size_t kb, const size_t vb,
     }
     _map_set_entry(k, v, i, pkey, pval, kb, vb);
     _map_link(&m->head, m->pn, i);
-    _map_bm_include(m->bm, i);
+    _map_bm_incl(m->bm, i);
     m->n++;
     m->mc++;
     return true;
@@ -605,7 +560,7 @@ bool _map_delete(void* mv, const size_t c, size_t kb, size_t vb,
     }
     if (found) {
 //      m->bm[i / 64] &= ~(1uLL << (i % 64));
-        _map_bm_exclude(m->bm, i);
+        _map_bm_excl(m->bm, i);
         _map_undup(m, i, kb, vb);
         _map_unlink(&m->head, m->pn, i);
         size_t x = i;
@@ -619,8 +574,8 @@ bool _map_delete(void* mv, const size_t c, size_t kb, size_t vb,
                                            x < h && h <= i;
             if (can_move) {
                 _map_move_entry(k, v, i, k, v, x, kb, vb);
-                _map_bm_include(m->bm, i);
-                _map_bm_exclude(m->bm, x);
+                _map_bm_incl(m->bm, i);
+                _map_bm_excl(m->bm, x);
                 _map_unlink(&m->head, m->pn, x);
                 _map_link(&m->head, m->pn, i);
                 i = x;
@@ -652,58 +607,6 @@ static void _map_print(void* mv, size_t c, size_t kb, size_t vb) {
         }
     }
 }
-
-#define map_tk(m) typeof((m)->k[0]) // type of key
-#define map_tv(m) typeof((m)->v[0]) // type of val
-
-#define map_ka(m, key) (&(map_tk(m)){(key)}) // key address
-#define map_va(m, val) (&(map_tv(m)){(val)}) // val address
-
-#define map_kb(m) sizeof((m)->k[0]) // number of bytes in key
-#define map_vb(m) sizeof((m)->v[0]) // number of bytes in val
-
-#define map_fixed_c(m) (sizeof((m)->k) / map_kb(m))
-
-#define map_capacity(m) ((m)->a > 0 ? (m)->a : map_fixed_c(m))
-
-#define map_init(m, n) _Generic(((m)->k[0]),                                \
-     const char*:                                                           \
-        _map_init((void*)m, sizeof((m)->tags) - 1, map_kb(m), map_vb(m), n, \
-                  &(m)->k, &(m)->v, &(m)->list, map_fixed_c(m),             \
-                  _map_str_cmp, _map_str_hash),                             \
-     default:                                                               \
-        _map_init((void*)m, sizeof((m)->tags) - 1, map_kb(m), map_vb(m), n, \
-                  &(m)->k, &(m)->v, &(m)->list, map_fixed_c(m),             \
-                  /*_map_str_cmp: */0, /*_map_str_hash: */ 0)               \
-)
-
-#define map_init_1_arg(m)    map_init(m, 0)
-#define map_init_2_arg(m, n) map_init(m, n)
-#define map_get_3rd_arg(arg1, arg2, arg3, ...) arg3
-#define map_init_chooser(...) map_get_3rd_arg(__VA_ARGS__, map_init_2_arg, map_init_1_arg, )
-#define map_alloc(...) map_init_chooser(__VA_ARGS__)(__VA_ARGS__)
-
-#define map_clear(m) _map_clear((void*)m, map_fixed_c(m), map_kb(m), map_vb(m))
-#define map_free(m) _map_free((void*)m, map_fixed_c(m), map_kb(m), map_vb(m))
-
-#define map_put(m, key, val) _map_put(m, map_capacity(m), \
-    map_kb(m), map_vb(m), map_ka(m, key), map_va(m, val))
-
-#define map_get(m, key) (map_tv(m)*)_map_get(m, map_capacity(m), \
-    map_kb(m), map_vb(m), map_ka(m, key))
-
-#define map_delete(m, key) _map_delete(m, map_capacity(m), \
-    map_kb(m), map_vb(m), map_ka(m, key))
-
-#define map_verify(m) _map_verify(m, map_capacity(m))
-
-#define map_print(m) _map_print(m, map_capacity(m), map_kb(m), map_vb(m))
-
-#define map_next(m, iterator) \
-        (map_tk(m)*)_map_next(iterator, map_kb(m), map_vb(m), 0)
-
-#define map_next_entry(m, iterator, pv) \
-        (map_tk(m)*)_map_next(iterator, map_kb(m), map_vb(m), pv)
 
 #ifdef __cplusplus
 } // extern "C"
